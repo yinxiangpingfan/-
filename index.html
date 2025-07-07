@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天室</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 800px;
+            height: 600px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: #4a5568;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .username-section {
+            padding: 20px;
+            background: #f7fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .username-section input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .username-section input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .username-section button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+
+        .username-section button:hover {
+            background: #5a67d8;
+        }
+
+        .username-section button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f7fafc;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .message.own {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.other {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .message-info {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+
+        .message-content {
+            font-size: 16px;
+        }
+
+        .input-section {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-section input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .input-section input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-section button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+
+        .input-section button:hover {
+            background: #5a67d8;
+        }
+
+        .input-section button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 10px 20px;
+            text-align: center;
+            font-size: 14px;
+            background: #fed7d7;
+            color: #c53030;
+        }
+
+        .status.connected {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            💬 聊天室
+        </div>
+        
+        <div class="username-section" id="usernameSection">
+            <input type="text" id="usernameInput" placeholder="请输入您的用户名" maxlength="20">
+            <button id="connectBtn">连接</button>
+        </div>
+        
+        <div class="status" id="status">请输入用户名并连接到聊天室</div>
+        
+        <div class="messages-container" id="messagesContainer">
+            <!-- 消息将在这里显示 -->
+        </div>
+        
+        <div class="input-section hidden" id="inputSection">
+            <input type="text" id="messageInput" placeholder="输入消息..." maxlength="500">
+            <button id="sendBtn">发送</button>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let username = '';
+        let isConnected = false;
+        let reconnectAttempts = 0;
+        let maxReconnectAttempts = 5;
+        let reconnectInterval = 3000; // 3秒后重连
+
+        const usernameSection = document.getElementById('usernameSection');
+        const usernameInput = document.getElementById('usernameInput');
+        const connectBtn = document.getElementById('connectBtn');
+        const status = document.getElementById('status');
+        const messagesContainer = document.getElementById('messagesContainer');
+        const inputSection = document.getElementById('inputSection');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        // 连接WebSocket
+        function connect() {
+            username = usernameInput.value.trim();
+            if (!username) {
+                alert('请输入用户名');
+                return;
+            }
+
+            const wsUrl = `ws://${window.location.host}/ws`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log('WebSocket连接已建立');
+                isConnected = true;
+                updateStatus('已连接到聊天室', true);
+                
+                // 发送用户名作为身份标识
+                ws.send(username);
+                
+                // 隐藏用户名输入区域，显示消息输入区域
+                usernameSection.classList.add('hidden');
+                inputSection.classList.remove('hidden');
+                
+                // 聚焦到消息输入框
+                messageInput.focus();
+                
+                // 添加欢迎消息
+                addMessage('系统', `欢迎 ${username} 加入聊天室！`, 'system');
+            };
+
+            ws.onmessage = function(event) {
+                console.log('收到消息:', event.data);
+                // 后端广播的消息格式为 "用户名:消息内容"
+                const colonIndex = event.data.indexOf(':');
+                if (colonIndex > 0) {
+                    const senderName = event.data.substring(0, colonIndex);
+                    const messageContent = event.data.substring(colonIndex + 1);
+                    
+                    // 判断是否是自己发送的消息
+                    if (senderName === username) {
+                        // 不显示自己的消息，因为已经在本地显示了
+                        return;
+                    } else {
+                        // 显示其他用户的消息
+                        addMessage(senderName, messageContent, 'other');
+                    }
+                } else {
+                    // 如果格式不正确，显示原始消息
+                    addMessage('未知用户', event.data, 'other');
+                }
+            };
+
+            // 处理心跳检测 - 自动响应服务器的ping消息
+            ws.addEventListener('ping', function() {
+                console.log('收到ping，发送pong响应');
+                // WebSocket会自动处理pong响应，无需手动发送
+            });
+
+            // 重置重连计数器
+            reconnectAttempts = 0;
+
+            ws.onclose = function(event) {
+                console.log('WebSocket连接已关闭', event);
+                isConnected = false;
+                
+                // 如果不是正常关闭且用户名已设置，尝试重连
+                if (event.code !== 1000 && username && reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    updateStatus(`连接断开，${reconnectInterval/1000}秒后尝试重连 (${reconnectAttempts}/${maxReconnectAttempts})`, false);
+                    setTimeout(() => {
+                        console.log(`尝试重连 ${reconnectAttempts}/${maxReconnectAttempts}`);
+                        reconnect();
+                    }, reconnectInterval);
+                } else {
+                    updateStatus('连接已断开', false);
+                    // 显示用户名输入区域，隐藏消息输入区域
+                    usernameSection.classList.remove('hidden');
+                    inputSection.classList.add('hidden');
+                    reconnectAttempts = 0;
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket错误:', error);
+                updateStatus('连接错误', false);
+            };
+        }
+
+        // 重连函数
+        function reconnect() {
+            if (username && reconnectAttempts <= maxReconnectAttempts) {
+                const wsUrl = `ws://${window.location.host}/ws`;
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = function() {
+                    console.log('重连成功');
+                    isConnected = true;
+                    updateStatus('重连成功', true);
+                    reconnectAttempts = 0;
+                    
+                    // 重新发送用户名
+                    ws.send(username);
+                    
+                    addMessage('系统', '重新连接成功！', 'system');
+                };
+
+                ws.onmessage = function(event) {
+                    console.log('收到消息:', event.data);
+                    const colonIndex = event.data.indexOf(':');
+                    if (colonIndex > 0) {
+                        const senderName = event.data.substring(0, colonIndex);
+                        const messageContent = event.data.substring(colonIndex + 1);
+                        
+                        if (senderName === username) {
+                            return;
+                        } else {
+                            addMessage(senderName, messageContent, 'other');
+                        }
+                    } else {
+                        addMessage('未知用户', event.data, 'other');
+                    }
+                };
+
+                ws.addEventListener('ping', function() {
+                    console.log('收到ping，发送pong响应');
+                });
+
+                ws.onclose = function(event) {
+                    console.log('重连WebSocket连接已关闭', event);
+                    isConnected = false;
+                    
+                    if (event.code !== 1000 && username && reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        updateStatus(`连接断开，${reconnectInterval/1000}秒后尝试重连 (${reconnectAttempts}/${maxReconnectAttempts})`, false);
+                        setTimeout(() => {
+                            console.log(`尝试重连 ${reconnectAttempts}/${maxReconnectAttempts}`);
+                            reconnect();
+                        }, reconnectInterval);
+                    } else {
+                        updateStatus('连接已断开', false);
+                        usernameSection.classList.remove('hidden');
+                        inputSection.classList.add('hidden');
+                        reconnectAttempts = 0;
+                    }
+                };
+
+                ws.onerror = function(error) {
+                    console.error('重连WebSocket错误:', error);
+                    updateStatus('重连失败', false);
+                };
+            }
+        }
+
+        // 发送消息
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || !isConnected) {
+                return;
+            }
+
+            try {
+                // 发送纯文本消息（后端会广播给其他用户）
+                ws.send(message);
+                
+                // 在本地显示自己的消息
+                addMessage(username, message, 'own');
+                
+                // 清空输入框
+                messageInput.value = '';
+            } catch (e) {
+                console.error('发送消息失败:', e);
+            }
+        }
+
+        // 添加消息到聊天区域
+        function addMessage(user, message, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('zh-CN', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            if (type === 'system') {
+                messageDiv.innerHTML = `
+                    <div class="message-info">${timeString}</div>
+                    <div class="message-content">${message}</div>
+                `;
+                messageDiv.style.background = '#bee3f8';
+                messageDiv.style.color = '#2a69ac';
+                messageDiv.style.textAlign = 'center';
+                messageDiv.style.margin = '0 auto';
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="message-info">${user} - ${timeString}</div>
+                    <div class="message-content">${message}</div>
+                `;
+            }
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 更新状态
+        function updateStatus(message, connected) {
+            status.textContent = message;
+            status.className = connected ? 'status connected' : 'status';
+        }
+
+        // 事件监听器
+        connectBtn.addEventListener('click', connect);
+        sendBtn.addEventListener('click', sendMessage);
+
+        usernameInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                connect();
+            }
+        });
+
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // 页面加载完成后聚焦到用户名输入框
+        window.addEventListener('load', function() {
+            usernameInput.focus();
+        });
+    </script>
+</body>
+</html>
