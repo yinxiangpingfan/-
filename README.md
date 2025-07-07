@@ -202,10 +202,6 @@ ws.onclose = function(event) {
 
 ## 🚀 安装运行
 
-### 环境要求
-- Go 1.24.1+
-- 现代浏览器（支持 WebSocket）
-
 ### 快速开始
 
 1. **克隆项目**
@@ -227,22 +223,6 @@ go run main.go
 4. **访问应用**
 ```
 浏览器打开：http://localhost:8080
-```
-
-### Docker 部署（可选）
-
-```dockerfile
-FROM golang:1.24.1-alpine AS builder
-WORKDIR /app
-COPY . .
-RUN go mod tidy && go build -o chatroom .
-
-FROM alpine:latest
-WORKDIR /app
-COPY --from=builder /app/chatroom .
-COPY --from=builder /app/index.html .
-EXPOSE 8080
-CMD ["./chatroom"]
 ```
 
 ## 📖 使用说明
@@ -328,24 +308,8 @@ let reconnectInterval = 3000;    // 重连间隔（毫秒）
 
 ## 🤝 贡献指南
 
-欢迎提交 Issue 和 Pull Request！
+个人学习的小功能，欢迎指正
 
-### 开发环境搭建
-1. Fork 本项目
-2. 创建功能分支：`git checkout -b feature/new-feature`
-3. 提交更改：`git commit -am 'Add new feature'`
-4. 推送分支：`git push origin feature/new-feature`
-5. 提交 Pull Request
-
-## 📄 许可证
-
-MIT License
-
-## 🙏 致谢
-
-- [Gin](https://github.com/gin-gonic/gin) - 高性能 HTTP 框架
-- [Gorilla WebSocket](https://github.com/gorilla/websocket) - WebSocket 实现
-- 所有贡献者和使用者
 
 ---
 
